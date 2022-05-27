@@ -1,0 +1,51 @@
+version: '3.8'
+
+# setup the network
+networks:
+  frontend:
+    external:
+      name: reverse-proxy
+  backend:
+    driver: bridge
+
+services:
+  db:
+    image: mariadb
+    restart: always
+    command: --max-allowed-packet=64MB
+    volumes:
+      - ./data/db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+    networks:
+      - backend
+
+  app:
+    image: matomo
+    restart: always
+    volumes:
+      - ./data/matomo/config:/var/www/html/config
+      - ./data/matomo/logs:/var/www/html/logs
+    environment:
+      - MATOMO_DATABASE_HOST=db
+      - MATOMO_DATABASE_ADAPTER=${MATOMO_DATABASE_ADAPTER}
+      - MATOMO_DATABASE_TABLES_PREFIX=${MATOMO_DATABASE_TABLES_PREFIX}
+      - MATOMO_DATABASE_USERNAME=${MATOMO_DATABASE_USERNAME}
+      - MATOMO_DATABASE_PASSWORD=${MATOMO_DATABASE_PASSWORD}
+      - MATOMO_DATABASE_DBNAME=${MATOMO_DATABASE_DBNAME}
+    # add the labels to the service configuration
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=reverse-proxy"
+      # https
+      - "traefik.http.routers.matomo.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.matomo.entrypoints=websecure"
+      - "traefik.http.routers.matomo.tls=true"
+      - "traefik.http.routers.matomo.tls.certresolver=letsencrypt"
+    # add the network to the service configuration
+    networks:
+      - frontend
+      - backend
